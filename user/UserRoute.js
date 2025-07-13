@@ -1,3 +1,4 @@
+
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
@@ -10,8 +11,8 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 
 // Twilio setup
-const accountSid = process.env.accountSid;
-const authToken = process.env.authToken;
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = require("twilio")(accountSid, authToken);
 const fromNumber = "+12312273565"; // Twilio'dan aldığın nömrə
 
@@ -41,7 +42,7 @@ router.post("/send-otp-number", upload.none(), async (req, res) => {
     })
     .catch((err) => {
       console.error("OTP göndərmə xətası:", err);
-      res.status(500).json({ message: "OTP göndərilə bilmədi" });
+      res.status(500).json({ message: "OTP göndərilə bilmədi"});
     });
 });
 
