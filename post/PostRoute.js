@@ -170,4 +170,33 @@ router.get("/my-posts", authenticateToken, async (req, res) => {
 });
 
 
+router.get('/favorite-posts', async (req, res) => {
+  const ids = req.query.ids ? req.query.ids.split(',') : [];
+  if (!ids.length) return res.json([]);
+  const posts = await Post.find({ _id: { $in: ids } });
+  res.json(posts);
+});
+
+
+
+router.get("/search", async (req, res) => {
+  const { q } = req.query;
+console.log(q)
+  if (!q) {
+    return res.status(400).json({ error: "Arama terimi gereklidir." });
+  }
+
+  try {
+    const results = await Post.find({
+      post_title: { $regex: `^${q}`, $options: "i" }
+    }).sort({ premium: -1 }); 
+
+    res.json(results);
+  } catch (err) {
+    console.error("Arama hatası:", err);
+    res.status(500).json({ error: "Sunucu hatası" });
+  }
+});
+
+
 module.exports = router;

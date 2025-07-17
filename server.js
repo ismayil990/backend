@@ -1,4 +1,5 @@
 require('dotenv').config()
+require("./post/updatePosts.js")
 const express = require('express');
 const mongoose = require('mongoose');
 const connectDB = require("./db.js");

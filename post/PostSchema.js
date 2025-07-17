@@ -6,6 +6,9 @@ contactCount: { type: Number, default: 0 },
 premium: { type: Boolean, default: false },
 premiumExpiresAt: { type: Date },
 
-}, { strict: false });
+}, { 
+  strict: false,
+  timestamps: true  
+});
 
 module.exports = mongoose.model("Post", postSchema);
