@@ -45,7 +45,7 @@ router.post("/send-otp", async (req, res) => {
     await client.messages.create({
       body: `Sizin OTP kodunuz: ${otp}`,
       to: contact, 
-      from:"+12312273565"// mütləq +99450xxxxxxx formatında olmalıdır // <-- Buraya öz Twilio nömrəni yaz
+      from:"+12316818115"// mütləq +99450xxxxxxx formatında olmalıdır // <-- Buraya öz Twilio nömrəni yaz
     });
 
     console.log(`OTP ${contact} nömrəsinə göndərildi: ${otp}`);
@@ -64,7 +64,11 @@ router.post("/posts", upload.array("images"), async (req, res) => {
   try {
     const formData = req.body;
     const files = req.files;
-    const { contact, name, email, otp } = formData;
+
+    const { contact, name, email, otp, price, ...rest } = formData;
+
+    // Price hələ string olduğu üçün burada mütləq Number-a çevrilir
+    const priceNum = price && !isNaN(price) ? Number(price) : undefined;
 
     if (!verifyOtp(contact, otp)) {
       return res.status(400).json({ message: "OTP səhvdir və ya müddəti bitib" });
@@ -72,7 +76,6 @@ router.post("/posts", upload.array("images"), async (req, res) => {
     deleteOtp(contact);
 
     let user = await User.findOne({ contact });
-
     if (!user) {
       user = new User({
         contact,
@@ -90,8 +93,13 @@ router.post("/posts", upload.array("images"), async (req, res) => {
       }
     }
 
+    // Yeni post yaradılır, price Number tipində buraya daxil edilir
     const newPost = new Post({
-      ...formData,
+      ...rest,
+      contact,
+      name,
+      email,
+      price: priceNum,
       images: imageUrls,
       user: user._id,
     });
@@ -115,21 +123,17 @@ router.get("/posts", async (req, res) => {
     const skip = parseInt(req.query.skip) || 0;
     const limit = parseInt(req.query.limit) || 2;
 
-    // filter obyektini hazırla
     const filter = {};
-
     if (categoryName.toLowerCase() !== "bütün elanlar") {
       filter.category = categoryName;
     }
-    // əks halda filter boş qalacaq və bütün elanlar gələcək
 
     const posts = await Post.aggregate([
-  { $match: filter },
-  { $addFields: { premiumValue: { $ifNull: ["$premium", false] } } },
-  { $sort: { premiumValue: -1, createdAt: -1 } },
-  { $skip: skip },
-  { $limit: limit }
-]);
+      { $match: filter },
+      { $sort: { premium: -1, createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit }
+    ]);
 
     res.json(posts);
   } catch (error) {
@@ -179,24 +183,60 @@ router.get('/favorite-posts', async (req, res) => {
 
 
 
-router.get("/search", async (req, res) => {
-  const { q } = req.query;
-console.log(q)
-  if (!q) {
-    return res.status(400).json({ error: "Arama terimi gereklidir." });
-  }
 
+
+router.post("/search-advanced", async (req, res) => {
   try {
-    const results = await Post.find({
-      post_title: { $regex: `^${q}`, $options: "i" }
-    }).sort({ premium: -1 }); 
+    const filters = req.body;
+    console.log("Filters:", filters);
 
+    const query = {};
+
+    // Qiymət intervalı (minprice və maxprice)
+    if (filters.minprice || filters.maxprice) {
+      const min = Number(filters.minprice);
+      const max = Number(filters.maxprice);
+
+      query.price = {};
+
+      if (!isNaN(min)) {
+        query.price.$gte = min;
+      }
+
+      if (!isNaN(max)) {
+        query.price.$lte = max;
+      }
+
+      if (Object.keys(query.price).length === 0) {
+        delete query.price;
+      }
+    }
+
+    // Digər sahələri regex ilə dinamik əlavə et, mecburi etmədən
+    for (const key in filters) {
+      if (
+        filters[key] &&
+        key !== "minprice" &&
+        key !== "maxprice"
+      ) {
+        query[key] = {
+          $regex: new RegExp("^" + filters[key] + "$", "i"),
+        };
+      }
+    }
+
+    console.log("Query:", query);
+
+    const results = await Post.find(query).sort({ createdAt: -1 });
     res.json(results);
-  } catch (err) {
-    console.error("Arama hatası:", err);
-    res.status(500).json({ error: "Sunucu hatası" });
+  } catch (error) {
+    console.error("Search error:", error);
+    res.status(500).json({ error: "Server error" });
   }
 });
+
+
+
 
 
 module.exports = router;

@@ -13,7 +13,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = require("twilio")(accountSid, authToken);
-const fromNumber = "+12312273565"; // Twilio'dan aldığın nömrə
+const fromNumber = "+12316818115"; // Twilio'dan aldığın nömrə
 
 // 📌 1️⃣ OTP göndər
 router.post("/send-otp-number", upload.none(), async (req, res) => {

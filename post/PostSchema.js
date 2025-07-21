@@ -5,6 +5,7 @@ views: { type: Number, default: 0 },
 contactCount: { type: Number, default: 0 },
 premium: { type: Boolean, default: false },
 premiumExpiresAt: { type: Date },
+ price: { type: Number },
 
 }, { 
   strict: false,
