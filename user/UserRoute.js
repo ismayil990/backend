@@ -3,8 +3,9 @@ const router = express.Router();
 const multer = require("multer");
 const jwt = require("jsonwebtoken");
 const User = require("./UserSchema");
+const Post = require("../post/PostSchema");
 const { saveOtp, verifyOtp, deleteOtp } = require("../post/otpstore");
-
+const authenticateToken = require("../middleware/authenticate");
 const upload = multer();
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -71,6 +72,22 @@ router.post("/verify-otp", upload.none(), async (req, res) => {
   res.json({ message: "Daxil oldunuz", token, user });
 });
 
+router.get("/verify-user", (req, res) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ valid: false });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    res.json({ valid: true, user: decoded });
+  } catch (err) {
+    res.status(401).json({ valid: false });
+  }
+});
+
 router.get("/profile", async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -100,6 +117,24 @@ router.get("/profile", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server xətası" });
+  }
+});
+
+
+router.delete("/delete-account", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id; // Token-dən gələn user ID
+
+    // 1. İstifadəçini sil
+    await User.findByIdAndDelete(userId);
+
+    // 2. O istifadəçiyə aid bütün postları sil
+   await Post.deleteMany({ user: mongoose.Types.ObjectId(userId) });
+
+    res.status(200).json({ message: "Hesab və elanlar uğurla silindi" });
+  } catch (error) {
+    console.error("Hesab silmə xətası:", error);
+    res.status(500).json({ message: "Serverdə xəta baş verdi" });
   }
 });
 

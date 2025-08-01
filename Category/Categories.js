@@ -2,6 +2,8 @@
 const express = require("express");
 const router = express.Router();
 const Category=require("../Category/models/Category")
+const isAdmin = require("../middleware/isAdmin");
+
 // Kategori listele
 
 
@@ -34,7 +36,7 @@ router.get("/categories", async (req, res) => {
 });
 
 // Yeni kategori ekle
-router.post("/categories", async (req, res) => {
+router.post("/categories",isAdmin, async (req, res) => {
   try {
     const { name } = req.body;
     const existing = await Category.findOne({ name });
@@ -49,7 +51,7 @@ router.post("/categories", async (req, res) => {
 });
 
 // Marka ekle
-router.post("/:categoryId/brands", async (req, res) => {
+router.post("/:categoryId/brands",isAdmin, async (req, res) => {
   try {
     const { categoryId } = req.params;
     const { brandName } = req.body;
@@ -70,7 +72,7 @@ router.post("/:categoryId/brands", async (req, res) => {
 });
 
 // Model ekle
-router.post("/:categoryId/brands/:brandId/models", async (req, res) => {
+router.post("/:categoryId/brands/:brandId/models",isAdmin, async (req, res) => {
   try {
     const { categoryId, brandId } = req.params;
     const { modelName } = req.body;

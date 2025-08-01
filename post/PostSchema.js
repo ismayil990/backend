@@ -6,7 +6,11 @@ contactCount: { type: Number, default: 0 },
 premium: { type: Boolean, default: false },
 premiumExpiresAt: { type: Date },
  price: { type: Number },
-
+ isApproved:{type:Boolean, default:false},
+ bumpedAt: {
+    type: Date,
+    default: Date.now, // başlanğıc olaraq yaradılma anı
+  }
 }, { 
   strict: false,
   timestamps: true  

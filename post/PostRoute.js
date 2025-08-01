@@ -9,6 +9,7 @@ const upload = multer({ storage });
 const { saveOtp, verifyOtp, deleteOtp } = require("./otpstore");
 const authenticateToken = require("../middleware/authenticate");
 const mongoose = require('mongoose');
+const Category = require("../Category/models/Category");
 
 // Twilio import
 const twilio = require("twilio"); 
@@ -45,7 +46,7 @@ router.post("/send-otp", async (req, res) => {
     await client.messages.create({
       body: `Sizin OTP kodunuz: ${otp}`,
       to: contact, 
-      from:"+12316818115"// mütləq +99450xxxxxxx formatında olmalıdır // <-- Buraya öz Twilio nömrəni yaz
+      from:"+12316818115"
     });
 
     console.log(`OTP ${contact} nömrəsinə göndərildi: ${otp}`);
@@ -60,14 +61,23 @@ router.post("/send-otp", async (req, res) => {
 });
 
 // Elan əlavə etmə endpointi (OTP yoxlaması ilə)
+ // bunu yuxarıda import etməyi unutma
+
+function capitalizeWords(str) {
+  if (!str) return "";
+  return str
+    .split(" ")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
 router.post("/posts", upload.array("images"), async (req, res) => {
   try {
     const formData = req.body;
     const files = req.files;
 
-    const { contact, name, email, otp, price, ...rest } = formData;
+    const { contact, name, email, otp, price, category, brand, model, ...rest } = formData;
 
-    // Price hələ string olduğu üçün burada mütləq Number-a çevrilir
     const priceNum = price && !isNaN(price) ? Number(price) : undefined;
 
     if (!verifyOtp(contact, otp)) {
@@ -77,11 +87,7 @@ router.post("/posts", upload.array("images"), async (req, res) => {
 
     let user = await User.findOne({ contact });
     if (!user) {
-      user = new User({
-        contact,
-        name,
-        email,
-      });
+      user = new User({ contact, name, email });
       await user.save();
     }
 
@@ -93,19 +99,43 @@ router.post("/posts", upload.array("images"), async (req, res) => {
       }
     }
 
-    // Yeni post yaradılır, price Number tipində buraya daxil edilir
+    
+ if (category && brand && model && brand !== "Digər") {
+  let formattedModel = capitalizeWords(model);
+
+  const categoryDoc = await Category.findOne({ name: category });
+
+  if (categoryDoc) {
+    const brandObj = categoryDoc.brands.find((b) => b.name === brand);
+
+    if (brandObj) {
+      const modelExists = brandObj.models.some(
+        (m) => m.toLowerCase() === formattedModel.toLowerCase()
+      );
+
+      if (!modelExists) {
+        brandObj.models.push(formattedModel);
+        await categoryDoc.save();
+      }
+    }
+  }
+}
     const newPost = new Post({
       ...rest,
       contact,
       name,
       email,
       price: priceNum,
+      category,
+      brand,
+      model,
       images: imageUrls,
       user: user._id,
     });
+  
 
     await newPost.save();
-
+    
     res.status(201).json({
       message: "Elan uğurla əlavə olundu",
       post_id: newPost._id,
@@ -116,6 +146,7 @@ router.post("/posts", upload.array("images"), async (req, res) => {
   }
 });
 
+
 // Elanları çəkmə endpointi
 router.get("/posts", async (req, res) => {
   try {
@@ -123,14 +154,15 @@ router.get("/posts", async (req, res) => {
     const skip = parseInt(req.query.skip) || 0;
     const limit = parseInt(req.query.limit) || 2;
 
-    const filter = {};
+    const filter = { isApproved: true }; // ✅ Yalnız təsdiqlənmiş elanlar
+
     if (categoryName.toLowerCase() !== "bütün elanlar") {
       filter.category = categoryName;
     }
 
     const posts = await Post.aggregate([
       { $match: filter },
-      { $sort: { premium: -1, createdAt: -1 } },
+      { $sort: { premium: -1, bumpedAt: -1 } },
       { $skip: skip },
       { $limit: limit }
     ]);
@@ -227,11 +259,54 @@ router.post("/search-advanced", async (req, res) => {
 
     console.log("Query:", query);
 
-    const results = await Post.find(query).sort({ createdAt: -1 });
+    const results = await Post.find(query).sort({premium:-1, createdAt: -1 });
     res.json(results);
   } catch (error) {
     console.error("Search error:", error);
     res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+router.delete("/delete-post/:id", authenticateToken, async (req, res) => {
+  try {
+    const postId = req.params.id;
+
+    // Elanı tapırıq
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: "Post tapılmadı" });
+    }
+
+    // İstəyə bağlı olaraq postun sahibini yoxlamaq olar, məsələn:
+    // if (post.user.toString() !== req.user.id) {
+    //   return res.status(403).json({ message: "Sizin icazəniz yoxdur" });
+    // }
+
+    // Şəkilləri Cloudinary-dən silək
+    if (post.images && post.images.length > 0) {
+      for (const imageUrl of post.images) {
+        const urlParts = imageUrl.split("/");
+        const fileWithExt = urlParts[urlParts.length - 1];
+        const fileName = fileWithExt.split(".")[0];
+        const folder = urlParts[urlParts.length - 2];
+        const publicId = folder ? `${folder}/${fileName}` : fileName;
+
+        try {
+          await cloudinary.uploader.destroy(publicId);
+        } catch (err) {
+          console.error(`Cloudinary şəkil silmə xətası: ${publicId}`, err);
+        }
+      }
+    }
+
+    // Elanı DB-dən silək
+    await Post.deleteOne({ _id: postId });
+
+    res.status(200).json({ message: "Post uğurla silindi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server xətası" });
   }
 });
 

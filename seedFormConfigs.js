@@ -7,7 +7,7 @@ connectDB()
 
 const seedConfigs = async () => {
   try {
-    await FormConfig.deleteMany(); // Köhnələri silmək istəsən
+    await FormConfig.deleteMany(); 
     const categories = Object.keys(fieldsConfig);
 
     for (let category of categories) {
